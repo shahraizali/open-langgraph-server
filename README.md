@@ -6,7 +6,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue.svg)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-supported-blue.svg)](https://www.docker.com/)
 
-A lightweight, production-ready implementation of the [Agent Protocol](https://github.com/langchain-ai/agent-protocol) specification with native LangGraph integration. This server provides a standardized API for building, deploying, and managing AI agents with real-time streaming capabilities and robust data persistence.
+A lightweight, [WIP] implementation of the [Agent Protocol](https://github.com/langchain-ai/agent-protocol) specification with native LangGraph integration. This server provides a standardized API for building, deploying, and managing AI agents with real-time streaming capabilities and robust data persistence.
 
 ## Features
 
