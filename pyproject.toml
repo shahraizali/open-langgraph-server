@@ -1,0 +1,69 @@
+[project]
+name = "server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic (>=2.10.6,<3.0.0)",
+    "fastapi (>=0.115.8,<0.116.0)",
+    "langchain-core (>=0.3.0)",
+    "uvicorn[standard] (>=0.32.0)",
+    "python-multipart (>=0.0.9)",
+    "python-dotenv>=1.0.0",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    "psycopg2-binary (>=2.9.0)",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "sse_starlette",
+    "toml",
+    "langchain-openai>=0.3.27",
+    "langgraph-checkpoint-postgres>=2.0.21",
+    "psycopg[binary,pool]>=3.2.9",
+    "aiohttp>=3.12.13",
+    "trustcall>=0.0.39",
+    "aiofiles",
+    "black>=25.1.0",
+    "eventregistry>=9.1",
+    "json-repair>=0.41.0",
+    "langchain-openai>=0.3.12",
+    "langgraph==0.4.8",
+    "langgraph-prebuilt==0.2.2",
+    "langgraph-runtime-inmem==0.3.0",
+    "pydantic-settings>=2.8.1",
+    "python-dotenv>=1.0.1",
+    "structlog>=25.2.0",
+    "langchain_community",
+    "pyjwt",
+    "langgraph-sdk>=0.2.0",
+    "trustcall",
+    "pdfkit>=1.0.0",
+    "markdown>=3.8",
+    "google-search-results>=2.4.2",
+    "pytest>=8.4.1",
+    "llama-index>=0.12.43",
+    "ruff>=0.12.0",
+    "pinecone>=7.2.0",
+    "llama-index-vector-stores-pinecone>=0.5.0",
+    "llama-index-embeddings-azure-openai>=0.3.8",
+    "llama-index-llms-azure-openai>=0.3.4",
+    "pydantic>=2.11.7",
+    "pypdf2>=3.0.1",
+    "langchain_tavily",
+    "scalar-fastapi",
+    "langgraph-cli[inmem]>=0.3.3",
+]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F63", "F7", "F82"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -1,0 +1,698 @@
+from __future__ import annotations
+
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Union
+from uuid import UUID
+
+from pydantic import (
+    AnyUrl,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    conint,
+    field_validator,
+)
+
+
+class Capabilities(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    ap_io_messages: Optional[bool] = Field(
+        None,
+        alias="ap.io.messages",
+        description="Whether the agent supports Messages as input/output/state. If true, the agent uses the `messages` key in threads/runs endpoints.",
+        title="Messages",
+    )
+    ap_io_streaming: Optional[bool] = Field(
+        None,
+        alias="ap.io.streaming",
+        description="Whether the agent supports streaming output.",
+        title="Streaming",
+    )
+
+
+class Agent(BaseModel):
+    agent_id: str = Field(..., description="The ID of the agent.", title="Agent Id")
+    name: str = Field(..., description="The name of the agent", title="Agent Name")
+    description: Optional[str] = Field(
+        None, description="The description of the agent.", title="Description"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="The agent metadata.", title="Metadata"
+    )
+    capabilities: Capabilities = Field(
+        ...,
+        description="Describes which protocol features the agent supports. In addition to the standard capabilities (prefixed with ap.), implementations can declare custom capabilities, named in reverse domain notation (eg. com.example.some.capability).",
+        title="Agent Capabilities",
+    )
+
+
+class AgentSchema(BaseModel):
+    agent_id: str = Field(..., description="The ID of the agent.", title="Agent Id")
+    input_schema: Dict[str, Any] = Field(
+        ...,
+        description="The schema for the agent input. In JSON Schema format.",
+        title="Input Schema",
+    )
+    output_schema: Dict[str, Any] = Field(
+        ...,
+        description="The schema for the agent output. In JSON Schema format.",
+        title="Output Schema",
+    )
+    state_schema: Optional[Dict[str, Any]] = Field(
+        None,
+        description="The schema for the agent's internal state. In JSON Schema format.",
+        title="State Schema",
+    )
+    config_schema: Optional[Dict[str, Any]] = Field(
+        None,
+        description="The schema for the agent config. In JSON Schema format.",
+        title="Config Schema",
+    )
+
+
+class RunStatus(Enum):
+    pending = "pending"
+    error = "error"
+    success = "success"
+    timeout = "timeout"
+    interrupted = "interrupted"
+
+
+class StreamMode(str, Enum):
+    values = "values"
+    messages = "messages"
+    messages_tuple = "messages-tuple"
+    updates = "updates"
+    events = "events"
+    debug = "debug"
+    custom = "custom"
+
+
+class Config(BaseModel):
+    tags: Optional[List[str]] = Field(None, title="Tags")
+    recursion_limit: Optional[int] = Field(None, title="Recursion Limit")
+    configurable: Optional[Dict[str, Any]] = Field(None, title="Configurable")
+
+
+# LangGraph Assistant Models
+
+
+class AssistantConfigurable(BaseModel):
+    """Configuration parameters for assistants."""
+
+    model_config = ConfigDict(extra="allow")
+
+    thread_id: Optional[str] = Field(
+        None, description="Thread ID for stateful execution"
+    )
+    thread_ts: Optional[str] = Field(None, description="Thread timestamp")
+
+
+class AssistantConfig(BaseModel):
+    """Assistant configuration."""
+
+    model_config = ConfigDict(extra="allow")
+
+    tags: Optional[List[str]] = Field(None, description="Tags for the assistant")
+    recursion_limit: Optional[int] = Field(None, description="Maximum recursion depth")
+    configurable: Optional[AssistantConfigurable] = Field(
+        None, description="Configurable parameters"
+    )
+
+
+class Assistant(BaseModel):
+    """LangGraph Assistant model."""
+
+    assistant_id: str = Field(..., description="The ID of the assistant")
+    graph_id: str = Field(..., description="The graph ID this assistant uses")
+    config: AssistantConfig = Field(
+        default_factory=AssistantConfig, description="Assistant configuration"
+    )
+    context: Dict[str, Any] = Field(
+        default_factory=dict, description="Assistant context"
+    )
+    created_at: str = Field(..., description="Creation timestamp")
+    updated_at: str = Field(..., description="Last update timestamp")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Assistant metadata"
+    )
+    name: Optional[str] = Field(None, description="Assistant name")
+    version: int = Field(1, description="Assistant version")
+
+
+class AssistantCreate(BaseModel):
+    """Request model for creating an assistant."""
+
+    assistant_id: Optional[str] = Field(
+        None, description="Assistant ID (generated if not provided)"
+    )
+    graph_id: str = Field(..., description="The graph to use")
+    config: Optional[AssistantConfig] = Field(
+        None, description="Assistant configuration"
+    )
+    context: Optional[Dict[str, Any]] = Field(None, description="Assistant context")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Assistant metadata")
+    if_exists: Optional[Literal["raise", "do_nothing"]] = Field(
+        "raise", description="Behavior if assistant exists"
+    )
+    name: Optional[str] = Field(None, description="Assistant name")
+
+
+class AssistantPatch(BaseModel):
+    """Request model for updating an assistant."""
+
+    graph_id: Optional[str] = Field(None, description="The graph to use")
+    config: Optional[AssistantConfig] = Field(
+        None, description="Assistant configuration"
+    )
+    context: Optional[Dict[str, Any]] = Field(None, description="Assistant context")
+    name: Optional[str] = Field(None, description="Assistant name")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata to merge")
+
+
+class AssistantSearchRequest(BaseModel):
+    """Request model for searching assistants."""
+
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Metadata to search for"
+    )
+    graph_id: Optional[str] = Field(None, description="Filter by graph ID")
+    limit: Optional[conint(ge=1, le=1000)] = Field(
+        10, description="Maximum number to return"
+    )
+    offset: Optional[conint(ge=0)] = Field(0, description="Offset to start from")
+
+
+class AssistantLatestVersion(BaseModel):
+    """Request model for setting latest assistant version."""
+
+    version: int = Field(..., description="Version number to set as latest")
+
+
+class CommandSchema(BaseModel):
+    goto: Optional[Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]] = None
+    update: Optional[Union[Dict[str, Any], List[tuple[str, Any]]]] = None
+    resume: Optional[Any] = None
+
+
+class LangsmithTracer(BaseModel):
+    project_name: Optional[str] = None
+    example_id: Optional[str] = None
+
+
+class CheckpointSchema(BaseModel):
+    checkpoint_id: Optional[str] = None
+    checkpoint_ns: Optional[str] = None
+    checkpoint_map: Optional[Dict[str, Any]] = None
+
+
+class AssistantSchema(BaseModel):
+    """Assistant schema response model."""
+
+    graph_id: str = Field(..., description="The graph ID")
+    input_schema: Optional[Dict[str, Any]] = Field(
+        None, description="Input JSON schema"
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        None, description="Output JSON schema"
+    )
+    state_schema: Optional[Dict[str, Any]] = Field(
+        None, description="State JSON schema"
+    )
+    config_schema: Optional[Dict[str, Any]] = Field(
+        None, description="Config JSON schema"
+    )
+
+
+class RunnableConfig(BaseModel):
+    """Runnable configuration for graph execution."""
+
+    tags: Optional[List[str]] = Field(None, description="Tags for execution")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Execution metadata")
+    run_name: Optional[str] = Field(None, description="Run name")
+    max_concurrency: Optional[int] = Field(None, description="Maximum concurrency")
+    recursion_limit: Optional[int] = Field(None, description="Recursion limit")
+    configurable: Optional[Dict[str, Any]] = Field(
+        None, description="Configurable parameters"
+    )
+    run_id: Optional[UUID] = Field(None, description="Run ID")
+
+
+class OnCompletion(Enum):
+    delete = "delete"
+    keep = "keep"
+
+
+class OnDisconnect(Enum):
+    cancel = "cancel"
+    continue_ = "continue"
+
+
+class IfNotExists(Enum):
+    create = "create"
+    reject = "reject"
+
+
+class RunSearchRequest(BaseModel):
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Run metadata to filter on.", title="Metadata"
+    )
+    status: Optional[RunStatus] = Field(
+        None, description="Run status to filter on.", title="Run Status"
+    )
+    thread_id: Optional[UUID] = Field(
+        None, description="The ID of the thread to filter on.", title="Thread Id"
+    )
+    agent_id: Optional[str] = Field(
+        None, description="The ID of the agent to filter on.", title="Agent Id"
+    )
+    limit: Optional[conint(ge=1, le=1000)] = Field(
+        10, description="Maximum number to return.", title="Limit"
+    )
+    offset: Optional[conint(ge=0)] = Field(
+        0, description="Offset to start from.", title="Offset"
+    )
+
+
+class ThreadCheckpoint(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    checkpoint_id: UUID = Field(
+        ..., description="The ID of the checkpoint.", title="Checkpoint Id"
+    )
+
+
+class IfExists(Enum):
+    raise_ = "raise"
+    do_nothing = "do_nothing"
+
+
+class ThreadCreate(BaseModel):
+    thread_id: Optional[UUID] = Field(
+        None,
+        description="The ID of the thread. If not provided, a random UUID will be generated.",
+        title="Thread Id",
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Metadata to add to thread.", title="Metadata"
+    )
+    if_exists: Optional[IfExists] = Field(
+        "raise",
+        description="How to handle duplicate creation. Must be either 'raise' (raise error if duplicate), or 'do_nothing' (return existing thread).",
+        title="If Exists",
+    )
+
+
+class ThreadStatus(Enum):
+    idle = "idle"
+    busy = "busy"
+    interrupted = "interrupted"
+    error = "error"
+
+
+class StorePutRequest(BaseModel):
+    namespace: List[str] = Field(
+        ...,
+        description="A list of strings representing the namespace path.",
+        title="Namespace",
+    )
+    key: str = Field(
+        ...,
+        description="The unique identifier for the item within the namespace.",
+        title="Key",
+    )
+    value: Dict[str, Any] = Field(
+        ..., description="A dictionary containing the item's data.", title="Value"
+    )
+
+
+class StoreDeleteRequest(BaseModel):
+    namespace: Optional[List[str]] = Field(
+        None,
+        description="A list of strings representing the namespace path.",
+        title="Namespace",
+    )
+    key: str = Field(
+        ..., description="The unique identifier for the item.", title="Key"
+    )
+
+
+class StoreSearchRequest(BaseModel):
+    namespace_prefix: Optional[List[str]] = Field(
+        None,
+        description="List of strings representing the namespace prefix.",
+        title="Namespace Prefix",
+    )
+    filter: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Optional dictionary of key-value pairs to filter results.",
+        title="Filter",
+    )
+    limit: Optional[int] = Field(
+        10,
+        description="Maximum number of items to return (default is 10).",
+        title="Limit",
+    )
+    offset: Optional[int] = Field(
+        0,
+        description="Number of items to skip before returning results (default is 0).",
+        title="Offset",
+    )
+
+
+class StoreListNamespacesRequest(BaseModel):
+    prefix: Optional[List[str]] = Field(
+        None,
+        description="Optional list of strings representing the prefix to filter namespaces.",
+        title="Prefix",
+    )
+    suffix: Optional[List[str]] = Field(
+        None,
+        description="Optional list of strings representing the suffix to filter namespaces.",
+        title="Suffix",
+    )
+    max_depth: Optional[int] = Field(
+        None,
+        description="Optional integer specifying the maximum depth of namespaces to return.",
+        title="Max Depth",
+    )
+    limit: Optional[int] = Field(
+        100,
+        description="Maximum number of namespaces to return (default is 100).",
+        title="Limit",
+    )
+    offset: Optional[int] = Field(
+        0,
+        description="Number of namespaces to skip before returning results (default is 0).",
+        title="Offset",
+    )
+
+
+class Item(BaseModel):
+    namespace: List[str] = Field(
+        ...,
+        description="The namespace of the item. A namespace is analogous to a document's directory.",
+    )
+    key: str = Field(
+        ...,
+        description="The unique identifier of the item within its namespace. In general, keys needn't be globally unique.",
+    )
+    value: Dict[str, Any] = Field(
+        ..., description="The value stored in the item. This is the document itself."
+    )
+    created_at: AwareDatetime = Field(
+        ..., description="The timestamp when the item was created."
+    )
+    updated_at: AwareDatetime = Field(
+        ..., description="The timestamp when the item was last updated."
+    )
+
+
+class Content(BaseModel):
+    text: str
+    type: Literal["text"]
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class Content1(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    type: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class Message(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    role: str = Field(..., description="The role of the message.", title="Role")
+    content: Union[str, List[Union[Content, Content1]]] = Field(
+        ..., description="The content of the message.", title="Content"
+    )
+    id: Optional[str] = Field(None, description="The ID of the message.", title="Id")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="The metadata of the message.", title="Metadata"
+    )
+
+
+class SearchItemsResponse(BaseModel):
+    items: List[Item]
+
+
+class ListNamespaceResponse(RootModel[List[List[str]]]):
+    root: List[List[str]]
+
+
+class ErrorResponse(BaseModel):
+    code: Optional[str] = Field(
+        None,
+        description="For some errors that could be handled programmatically, a short string indicating the error code reported.",
+    )
+    message: Optional[str] = Field(
+        None, description="A human-readable short description of the error."
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="A dictionary of additional information about the error."
+    )
+
+
+class AgentsSearchPostRequest(BaseModel):
+    name: Optional[str] = Field(None, description="Name of the agent to search.")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Metadata of the agent to search."
+    )
+    limit: Optional[conint(ge=1, le=1000)] = Field(
+        10, description="Maximum number to return.", title="Limit"
+    )
+    offset: Optional[conint(ge=0)] = Field(
+        0, description="Offset to start from.", title="Offset"
+    )
+
+
+class AgentsSearchPostResponse(RootModel[List[Agent]]):
+    root: List[Agent] = Field(..., title="Response Search Agents")
+
+
+class Action(Enum):
+    interrupt = "interrupt"
+    rollback = "rollback"
+
+
+class Namespace(RootModel[List[str]]):
+    root: List[str]
+
+
+class RunCreate(BaseModel):
+    assistant_id: Union[str, UUID] = Field(
+        ..., description="The agent ID to run.", title="Agent Id"
+    )
+    thread_id: Optional[UUID] = Field(
+        None,
+        description="The ID of the thread to run. If not provided, creates a stateless run. 'thread_id' is ignored unless Threads stage is implemented.",
+        title="Thread Id",
+    )
+    input: Optional[Union[Dict[str, Any], List, str, float, bool]] = Field(
+        None, description="The input to the agent.", title="Input"
+    )
+    messages: Optional[List[Message]] = Field(
+        None,
+        description="The messages to pass an input to the agent.",
+        title="Messages",
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Metadata to assign to the run.", title="Metadata"
+    )
+    config: Optional[Config] = Field(
+        None, description="The configuration for the agent.", title="Config"
+    )
+    webhook: Optional[AnyUrl] = Field(
+        None, description="Webhook to call after run finishes.", title="Webhook"
+    )
+    interrupt_before: Optional[Union[Literal["*"], List[str]]] = Field(
+        None, description="Nodes to interrupt before."
+    )
+    interrupt_after: Optional[Union[Literal["*"], List[str]]] = Field(
+        None, description="Nodes to interrupt after."
+    )
+    on_completion: Optional[OnCompletion] = Field(
+        None,
+        description="Whether to delete or keep the thread when run completes. Must be one of 'delete' or 'keep'. Defaults to 'delete' when thread_id not provided, otherwise 'keep'.",
+        title="On Completion",
+    )
+    on_disconnect: Optional[OnDisconnect] = Field(
+        "cancel",
+        description="The disconnect mode to use. Must be one of 'cancel' or 'continue'.",
+        title="On Disconnect",
+    )
+    if_not_exists: Optional[IfNotExists] = Field(
+        "reject",
+        description="How to handle missing thread. Must be either 'reject' (raise error if missing), or 'create' (create new thread).",
+        title="If Not Exists",
+    )
+    stream_mode: Optional[Union[StreamMode, List[StreamMode]]] = Field(
+        "values", description="The stream mode(s) to use.", title="Stream Mode"
+    )
+    checkpoint_id: Optional[str] = None
+    checkpoint: Optional[CheckpointSchema] = None
+    command: Optional[CommandSchema] = None
+    stream_subgraphs: Optional[bool] = None
+    stream_resumable: Optional[bool] = None
+    after_seconds: Optional[int] = None
+    feedback_keys: Optional[List[str]] = None
+    langsmith_tracer: Optional[LangsmithTracer] = None
+    multitask_strategy: Optional[str] = None
+
+    @field_validator("assistant_id", mode="before")
+    @classmethod
+    def validate_assistant_id(cls, v):
+        """Ensure assistant_id is always converted to string for consistent processing."""
+        return str(v)
+
+
+class Run(RunCreate):
+    run_id: UUID = Field(..., description="The ID of the run.", title="Run Id")
+    created_at: AwareDatetime = Field(
+        ..., description="The time the run was created.", title="Created At"
+    )
+    updated_at: AwareDatetime = Field(
+        ..., description="The last time the run was updated.", title="Updated At"
+    )
+    status: RunStatus
+
+
+class ThreadSearchRequest(BaseModel):
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Thread metadata to filter on.", title="Metadata"
+    )
+    values: Optional[Dict[str, Any]] = Field(
+        None, description="State values to filter on.", title="Values"
+    )
+    status: Optional[ThreadStatus] = Field(
+        None, description="Thread status to filter on.", title="Thread Status"
+    )
+    limit: Optional[int] = Field(
+        10, description="Maximum number to return.", title="Limit"
+    )
+    offset: Optional[int] = Field(
+        0, description="Offset to start from.", title="Offset"
+    )
+
+
+class Thread(BaseModel):
+    thread_id: UUID = Field(..., description="The ID of the thread.", title="Thread Id")
+    created_at: AwareDatetime = Field(
+        ..., description="The time the thread was created.", title="Created At"
+    )
+    updated_at: AwareDatetime = Field(
+        ..., description="The last time the thread was updated.", title="Updated At"
+    )
+    metadata: Dict[str, Any] = Field(
+        ..., description="The thread metadata.", title="Metadata"
+    )
+    status: ThreadStatus = Field(
+        ..., description="The status of the thread.", title="Thread Status"
+    )
+    values: Optional[Dict[str, Any]] = Field(
+        None, description="The current state of the thread.", title="Values"
+    )
+    config: Optional[Dict[str, Any]] = Field(
+        None, description="The thread configuration.", title="Config"
+    )
+    interrupts: Optional[Dict[str, Any]] = Field(
+        None, description="The thread interrupts.", title="Interrupts"
+    )
+    messages: Optional[List[Message]] = Field(
+        None,
+        description="The current Messages of the thread. If messages are contained in Thread.values, implementations should remove them from values when returning messages. When this key isn't present it means the thread/agent doesn't support messages.",
+        title="Messages",
+    )
+
+
+class ThreadState(BaseModel):
+    checkpoint: ThreadCheckpoint = Field(
+        ..., description="The identifier for this checkpoint.", title="Checkpoint"
+    )
+    values: Dict[str, Any] = Field(
+        ..., description="The current state of the thread.", title="Values"
+    )
+    messages: Optional[List[Message]] = Field(
+        None,
+        description="The current messages of the thread. This key isn't present for agents that don't support messages.",
+        title="Messages",
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="The checkpoint metadata.", title="Metadata"
+    )
+
+
+class ThreadPatch(BaseModel):
+    checkpoint: Optional[ThreadCheckpoint] = Field(
+        None,
+        description="The identifier of the checkpoint to branch from. Ignored for metadata-only patches. If not provided, defaults to the latest checkpoint.",
+        title="Checkpoint",
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Metadata to merge with existing thread metadata.",
+        title="Metadata",
+    )
+    values: Optional[Dict[str, Any]] = Field(
+        None, description="Values to merge with existing thread values.", title="Values"
+    )
+    messages: Optional[List[Message]] = Field(
+        None,
+        description="Messages to combine with current thread messages.",
+        title="Messages",
+    )
+
+
+class ThreadsSearchPostResponse(RootModel[List[Thread]]):
+    root: List[Thread] = Field(..., title="Response Search Threads Threads Search Post")
+
+
+class ThreadsThreadIdHistoryGetResponse(RootModel[List[ThreadState]]):
+    root: List[ThreadState]
+
+
+class RunsSearchPostResponse(RootModel[List[Run]]):
+    root: List[Run]
+
+
+class CronCreate(BaseModel):
+    thread_id: UUID
+    assistant_id: UUID
+    checkpoint_id: Optional[str] = None
+    input: Optional[Any] = None
+    metadata: Optional[Dict[str, Any]] = None
+    config: Optional[AssistantConfig] = None
+    webhook: Optional[str] = None
+    interrupt_before: Optional[Union[Literal["*"], List[str]]] = None
+    interrupt_after: Optional[Union[Literal["*"], List[str]]] = None
+    multitask_strategy: Optional[str] = None
+
+
+class CronSearch(BaseModel):
+    assistant_id: Optional[UUID] = None
+    thread_id: Optional[UUID] = None
+    limit: Optional[int] = 10
+    offset: Optional[int] = 0
+
+
+class RunBatchCreate(RootModel[List[RunCreate]]):
+    root: List[RunCreate]
+
+
+class RunWaitResponse(BaseModel):
+    run: Optional[Run] = Field(None, description="The run information.", title="Run")
+    values: Optional[Dict[str, Any]] = Field(
+        None, description="The values returned by the run.", title="Values"
+    )
+    messages: Optional[List[Message]] = Field(
+        None, description="The messages returned by the run.", title="Messages"
+    )
